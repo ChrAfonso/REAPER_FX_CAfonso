@@ -101,60 +101,83 @@ while (midirecv(offset, msg1, msg2, msg3) ?
 @gfx /////////////////////////////////////////////
 
 // debug output
-gfx_r = 255;
-gfx_g = 255;
-gfx_b = 0;
-
-gfx_x = 10;
-gfx_y = 10;
-gfx_drawstr("cc val: ");
-gfx_drawnumber(cc_val,0);
-
-gfx_y = 20;
-gfx_x = 10;
-cc_val >= thresh ? (
-	gfx_r = 0;
-	gfx_drawstr("Over thresh!");
+gui_y = 10;
+debug = 0;
+debug ? (
 	gfx_r = 255;
-);
-
-gfx_x = 10;
-gfx_y = 50;
-gfx_drawstr("Last MIDI message: ");
-gfx_drawnumber(status>>4, 0); gfx_drawstr("@"); gfx_drawnumber(nnnn,0); gfx_drawstr(", ");
-gfx_drawnumber(msg2, 0); gfx_drawstr(", ");
-gfx_drawnumber(msg3, 0);
-
-gfx_x = 10;
-gfx_y = 70;
-gfx_b = 255;
-gfx_drawstr("note states: ");
-gfx_x = 10;
-gfx_y = 80;
-k=0; loop(127,
-	gfx_drawnumber(keys_on[k],0);
-	gfx_drawstr(",");
+	gfx_g = 255;
+	gfx_b = 0;
 	
-	k+=1;
-	k % 12 == 0 ? (
-		gfx_x = 10;
-		gfx_y += 10;
+	gfx_x = 10;
+	gfx_y = 10;
+	gfx_drawstr("cc val: ");
+	gfx_drawnumber(cc_val,0);
+	
+	gfx_y = 20;
+	gfx_x = 10;
+	cc_val >= thresh ? (
+		gfx_r = 0;
+		gfx_drawstr("Over thresh!");
+		gfx_r = 255;
 	);
+	
+	gfx_x = 10;
+	gfx_y = 50;
+	gfx_drawstr("Last MIDI message: ");
+	gfx_drawnumber(status>>4, 0); gfx_drawstr("@"); gfx_drawnumber(nnnn,0); gfx_drawstr(", ");
+	gfx_drawnumber(msg2, 0); gfx_drawstr(", ");
+	gfx_drawnumber(msg3, 0);
+	
+	gfx_x = 10;
+	gfx_y = 70;
+	gfx_b = 255;
+	gfx_drawstr("note states: ");
+	gfx_x = 10;
+	gfx_y = 80;
+	k=0; loop(127,
+		gfx_drawnumber(keys_on[k],0);
+		gfx_drawstr(",");
+		
+		k+=1;
+		k % 12 == 0 ? (
+			gfx_x = 10;
+			gfx_y += 10;
+		);
+	);
+	
+	gui_y = 210;
 );
 
 // visualization
+key_width = 10;
+key_height = 40;
+keyboard_x = 50;
+keyboard_y = gui_y + 10;
+
 function black_key(note) (
 	mod = note % 12;
 	((1 << mod) & $x54A) > 0; // black keys bitmask: 0101 0100 1010
 );
 
-// TODO CC meter on the left?
+// CC meter on the left
+gfx_x = 10;
+gfx_y = gui_y;
+gfx_drawstr("CC:");
+
+//   frame
+gfx_r = gfx_g = gfx_b = 0.8;
+gfx_rect(10, gui_y + 10, 20, key_height);
+
+//   bg
+gfx_r = gfx_g = gfx_b = 0.2;
+gfx_rect(11, gui_y + 11, 18, key_height-2);
+
+//   bar
+cc_val > thresh ? gfx_g = 1 : gfx_r = 1;
+height = cc_val*(key_height-2)/127;
+gfx_rect(11, gui_y + (10 + key_height) - height, 18, height);
 
 // Keyboard
-key_width = 10;
-keyboard_x = 10;
-keyboard_y = 220;
-
 function draw_keys(white) (
 	x = keyboard_x;
 	y = keyboard_y;
@@ -167,7 +190,7 @@ function draw_keys(white) (
 				gfx_r = gfx_g = gfx_b = (keys_on[k]) ? 0.4 : 0.2;
 			);
 			off = 2;
-			height = 22;
+			height = key_height * 0.6;
 			black = 1;
 		) : (
 			k < lowest || k > highest ? (
@@ -177,11 +200,21 @@ function draw_keys(white) (
 				gfx_r = gfx_g = gfx_b = keys_on[k] ? 1 : 0.8;
 			);
 			off = 0;
-			height = 40;
+			height = key_height;
 			black = 0;
 		);
 		
 		(black != white) ? gfx_rect(x+off, y, key_width-(2*off)-1, height);
+		
+		// mark Cs
+		k % 12 == 0 ? (
+			octave = (k - (k % 12))/12 - 1;
+			gfx_r = gfx_g = gfx_b = 1;
+			gfx_x = x;
+			gfx_y = gui_y + 10 + key_height + 1;
+			gfx_drawstr("C");
+			gfx_drawnumber(octave, 0);
+		);
 		
 		k += 1;
 		x += (k % 12 == 5 || k % 12 == 0) ? 10 : 5; // more space before F and C keys
@@ -190,3 +223,5 @@ function draw_keys(white) (
 
 draw_keys(1); // white keys
 draw_keys(0); // black keys
+
+
