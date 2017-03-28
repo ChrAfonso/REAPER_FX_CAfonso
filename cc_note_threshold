@@ -1,0 +1,125 @@
+desc:Midi CC Note Threshold
+//tags: MIDI
+
+slider1:0<0,15,1>Midi Channel
+slider2:1<0,119,1>CC
+slider3:12<1,127,1>Threshold ON
+//slider4:6<1,127,1>Threshold OFF
+
+@init
+cc_prev = 0;
+cc_val = 0;
+keys_on = 0;
+k = 0; loop (128, k+=1;
+	keys_on[k] = 0;
+);
+
+@slider
+// send peak as CC
+midi_chan = slider1;
+cc_chan = slider2;
+thresh = slider3;
+thresh_off = thresh;
+stat = -1;
+
+@sample
+while (midirecv(offset, msg1, msg2, msg3) ?
+	(
+		status = msg1 & 240;
+		nnnn = msg1 & 15;
+		
+		nnnn == midi_chan ? (
+			
+			// cc change?
+			(status == $xB0 && msg2 == cc_chan) ? (
+				cc_val = msg3;
+			);
+			
+			cc_val < thresh_off ? (
+				// passed threshold downwards?
+				cc_prev >= thresh_off ? (
+					// turn off all notes
+					k = 0; loop(128, k+=1;
+						midisend(offset, $x80|nnnn, k, keys_on[k]);
+					);
+				);
+				
+				// pass through all non-note on/off messages
+				(status != $x80 && status != $x90) ? (
+					midisend(offset, msg1, msg2, msg3);
+				);
+			) : cc_val >= thresh ? (
+				// passed threshold upwards?
+				cc_prev < thresh ? (
+					// replay stored notes
+					k = 0; loop(128, k+=1;
+						keys_on[k] > 0 ? (
+							midisend(offset, $x80|nnnn, k, keys_on[k]); // safety? note off first
+							midisend(offset, $x90|nnnn, k, keys_on[k]);
+						);
+					);
+				);
+				
+				// pass through all others
+				midisend(offset, msg1, msg2, msg3);
+			);
+			
+			// TODO store note on/off
+			status == $x90 ? (
+				// on
+				keys_on[msg2] = msg3; // store velocity
+			);
+			status == $x80 ? (
+				// off
+				keys_on[msg2] = 0;
+			);
+			
+			cc_prev = cc_val;
+		) : (
+			// pass other channels
+			midisend(offset, msg1, msg2, msg3);
+		);
+	);
+);
+
+@gfx
+gfx_r = 255;
+gfx_g = 255;
+gfx_b = 0;
+
+gfx_x = 10;
+gfx_y = 10;
+gfx_drawstr("cc val: ");
+gfx_drawnumber(cc_val,0);
+
+gfx_y = 20;
+gfx_x = 10;
+cc_val >= thresh ? (
+	gfx_r = 0;
+	gfx_drawstr("Over thresh!");
+	gfx_r = 255;
+);
+
+gfx_x = 10;
+gfx_y = 50;
+gfx_drawstr("Last MIDI message: ");
+gfx_drawnumber(status>>4, 0); gfx_drawstr("@"); gfx_drawnumber(nnnn,0); gfx_drawstr(", ");
+gfx_drawnumber(msg2, 0); gfx_drawstr(", ");
+gfx_drawnumber(msg3, 0);
+
+gfx_x = 10;
+gfx_y = 70;
+gfx_b = 255;
+gfx_drawstr("note states: ");
+gfx_x = 10;
+gfx_y = 80;
+k=0; loop(127, k+=1;
+	gfx_drawnumber(keys_on[k],0);
+	gfx_drawstr(",");
+	
+	k % 12 == 0 ? (
+		gfx_x = 10;
+		gfx_y += 10;
+	);
+);
+
