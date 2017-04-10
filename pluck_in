@@ -1,0 +1,55 @@
+desc: Harp Pluck-In (Trigger notes on key up)
+
+slider1:1<0,10,0.1>Note-Off delay
+
+@init
+velocity = 0; // cache on note-on
+noteoff_timer = -1;
+off_channel = 0;
+off_key = 0;
+
+@slider
+noteoff_offset = max(100, slider1*44100);
+
+@sample
+
+(noteoff_timer > 0) ? noteoff_timer -= 1;
+(noteoff_timer == 0) ? (
+	midisend(0, off_channel, off_key, 0);
+);
+
+while(midirecv(offset, m1, m2, m3) ? (
+	status = m1 & $xF0;
+	channel = m1 & $x0F;
+	
+	(status == $x90) ? (
+		// swallow note-on
+		velocity = m3;
+	) : (status == $x80) ? (
+		(noteoff_timer > 0) ? (
+			// cancel previous note -- TODO: Store individual timers etc.?
+			midisend(offset, off_channel, off_key, 0);
+		);
+		
+		// trigger as note-on
+		midisend(offset, $x90 | channel, m2, velocity);
+		off_channel = $x80 | channel;
+		off_key = m2;
+		noteoff_timer = noteoff_offset;
+	) : (
+		// pass through all others
+		midisend(offset, m1, m2, m3);
+	);
+));
+
+@gfx
+
+gfx_r = gfx_g = gfx_b = 1;
+gfx_x = 10;
+gfx_y = 10;
+gfx_drawstr("Note-off timer: ");
+gfx_drawnumber(noteoff_timer, 0);
+gfx_y += 10;
+gfx_x = 10;
+gfx_drawstr("Note velocity: ");
+gfx_drawnumber(velocity, 0);
